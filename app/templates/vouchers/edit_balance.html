@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}修改余额 - VoucherArk{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="mb-4">修改余额/面值</h2>
+        <p class="text-muted">卡券：{{ voucher.name }}</p>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="mb-3">
+                {{ form.balance.label(class="form-label") }}
+                {{ form.balance(class="form-control", step="0.01") }}
+                <div class="form-text">当前余额：¥{{ "%.2f"|format(voucher.balance) }}</div>
+            </div>
+            <div class="mb-3">
+                {{ form.face_value.label(class="form-label") }}
+                {{ form.face_value(class="form-control", step="0.01") }}
+                <div class="form-text">当前面值：¥{{ "%.2f"|format(voucher.face_value) }}</div>
+            </div>
+            <div class="d-flex gap-2">
+                {{ form.submit(class="btn btn-warning") }}
+                <a href="{{ url_for('vouchers.detail', id=voucher.id) }}" class="btn btn-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ voucher.name }} - VoucherArk{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>{{ voucher.name }}</h2>
+            <div>
+                <a href="{{ url_for('vouchers.edit', id=voucher.id) }}" class="btn btn-outline-primary btn-sm">编辑</a>
+                <a href="{{ url_for('vouchers.edit_balance', id=voucher.id) }}" class="btn btn-outline-warning btn-sm">修改余额</a>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">类型</dt>
+                    <dd class="col-sm-9"><span class="badge bg-secondary">{{ voucher.type_display }}</span></dd>
+                    <dt class="col-sm-3">卡号/券码</dt>
+                    <dd class="col-sm-9">{{ voucher.code or '-' }}</dd>
+                    <dt class="col-sm-3">余额</dt>
+                    <dd class="col-sm-9">¥{{ "%.2f"|format(voucher.balance) }}</dd>
+                    <dt class="col-sm-3">面值</dt>
+                    <dd class="col-sm-9">¥{{ "%.2f"|format(voucher.face_value) }}</dd>
+                    <dt class="col-sm-3">有效期</dt>
+                    <dd class="col-sm-9">
+                        {% if voucher.expiry_date %}
+                            {{ voucher.expiry_date }}
+                            {% if voucher.is_expired %}<span class="badge bg-danger">已过期</span>{% endif %}
+                        {% else %}
+                            无期限
+                        {% endif %}
+                    </dd>
+                    <dt class="col-sm-3">备注</dt>
+                    <dd class="col-sm-9">{{ voucher.notes or '-' }}</dd>
+                    <dt class="col-sm-3">创建时间</dt>
+                    <dd class="col-sm-9">{{ voucher.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        {% if voucher.attachment_path %}
+        <div class="card mb-4">
+            <div class="card-header">附件</div>
+            <div class="card-body">
+                {% set ext = voucher.attachment_path.rsplit('.', 1)[1].lower() %}
+                {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+                <img src="{{ url_for('vouchers.download_attachment', id=voucher.id) }}" class="img-fluid mb-2" style="max-height:300px">
+                {% endif %}
+                <div>
+                    <a href="{{ url_for('vouchers.download_attachment', id=voucher.id) }}" class="btn btn-sm btn-outline-secondary">下载附件</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if history %}
+        <div class="card">
+            <div class="card-header">修改历史</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>字段</th>
+                            <th>旧值</th>
+                            <th>新值</th>
+                            <th>修改人</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in history %}
+                        <tr>
+                            <td>{{ h.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ '余额' if h.field_name == 'balance' else '面值' }}</td>
+                            <td>¥{{ h.old_value }}</td>
+                            <td>¥{{ h.new_value }}</td>
+                            <td>{{ h.modifier.username }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

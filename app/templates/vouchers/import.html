@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}导入CSV - VoucherArk{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="mb-4">导入CSV</h2>
+        <div class="alert alert-info">
+            CSV格式要求：第一行为表头，列名为：名称, 类型, 卡号/券码, 余额, 面值, 有效期, 备注<br>
+            类型可选值：优惠券、礼品卡、会员卡<br>
+            有效期格式：YYYY-MM-DD
+        </div>
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-3">
+                <label class="form-label">选择CSV文件</label>
+                <input type="file" name="file" class="form-control" accept=".csv" required>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">导入</button>
+                <a href="{{ url_for('vouchers.index') }}" class="btn btn-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}仪表盘 - VoucherArk{% endblock %}
+{% block content %}
+<h2 class="mb-4">仪表盘</h2>
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">卡券总数</h5>
+                <p class="display-6">{{ total }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-warning">
+            <div class="card-body">
+                <h5 class="card-title text-warning">即将过期</h5>
+                <p class="display-6">{{ expiring_soon|length }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">已过期</h5>
+                <p class="display-6">{{ expired|length }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center border-warning">
+            <div class="card-body">
+                <h5 class="card-title" style="color:#fd7e14">余额不足</h5>
+                <p class="display-6">{{ low_balance|length }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if expiring_soon %}
+<div class="card mb-4 card-expiring">
+    <div class="card-header bg-warning bg-opacity-10">7天内即将过期</div>
+    <ul class="list-group list-group-flush">
+        {% for v in expiring_soon %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="{{ url_for('vouchers.detail', id=v.id) }}">{{ v.name }}</a>
+            <span class="badge bg-warning text-dark">{{ v.expiry_date }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if expired %}
+<div class="card mb-4 card-expired">
+    <div class="card-header bg-danger bg-opacity-10">已过期</div>
+    <ul class="list-group list-group-flush">
+        {% for v in expired %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="{{ url_for('vouchers.detail', id=v.id) }}">{{ v.name }}</a>
+            <span class="badge bg-danger">{{ v.expiry_date }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if low_balance %}
+<div class="card mb-4 card-low-balance">
+    <div class="card-header bg-warning bg-opacity-10">余额不足</div>
+    <ul class="list-group list-group-flush">
+        {% for v in low_balance %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="{{ url_for('vouchers.detail', id=v.id) }}">{{ v.name }}</a>
+            <span class="badge bg-warning text-dark">¥{{ "%.2f"|format(v.balance) }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}登录 - VoucherArk{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title text-center mb-4">登录</h3>
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control", placeholder="用户名") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control", placeholder="密码") }}
+                    </div>
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </form>
+                <p class="text-center mt-3">
+                    还没有账号？<a href="{{ url_for('auth.register') }}">注册</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

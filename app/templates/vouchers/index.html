@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}我的卡券 - VoucherArk{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>{% if show_deleted %}回收站{% else %}我的卡券{% endif %}</h2>
+    <a href="{{ url_for('vouchers.create') }}" class="btn btn-primary">新建卡券</a>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    {% if show_deleted %}<input type="hidden" name="deleted" value="1">{% endif %}
+    <div class="col-md-3">
+        <select name="type" class="form-select">
+            <option value="">全部类型</option>
+            <option value="coupon" {% if type_filter == 'coupon' %}selected{% endif %}>优惠券</option>
+            <option value="gift_card" {% if type_filter == 'gift_card' %}selected{% endif %}>礼品卡</option>
+            <option value="membership" {% if type_filter == 'membership' %}selected{% endif %}>会员卡</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <input type="text" name="search" class="form-control" placeholder="搜索名称/卡号/备注" value="{{ search }}">
+    </div>
+    <div class="col-md-3">
+        <select name="sort" class="form-select">
+            <option value="expiry_asc" {% if sort == 'expiry_asc' %}selected{% endif %}>有效期↑</option>
+            <option value="expiry_desc" {% if sort == 'expiry_desc' %}selected{% endif %}>有效期↓</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-secondary w-100">筛选</button>
+    </div>
+</form>
+
+{% if vouchers %}
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>卡号</th>
+                <th>余额</th>
+                <th>面值</th>
+                <th>有效期</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in vouchers %}
+            <tr class="{% if v.is_expired %}table-danger{% endif %}">
+                <td><a href="{{ url_for('vouchers.detail', id=v.id) }}">{{ v.name }}</a></td>
+                <td><span class="badge bg-secondary">{{ v.type_display }}</span></td>
+                <td>{{ v.code or '-' }}</td>
+                <td>¥{{ "%.2f"|format(v.balance) }}</td>
+                <td>¥{{ "%.2f"|format(v.face_value) }}</td>
+                <td>{{ v.expiry_date or '无期限' }}</td>
+                <td>
+                    {% if show_deleted %}
+                    <form method="POST" action="{{ url_for('vouchers.restore', id=v.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-success">恢复</button>
+                    </form>
+                    {% else %}
+                    <a href="{{ url_for('vouchers.edit', id=v.id) }}" class="btn btn-sm btn-outline-primary">编辑</a>
+                    <form method="POST" action="{{ url_for('vouchers.delete', id=v.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定删除？')">删除</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if pagination.pages > 1 %}
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.prev_num }}&type={{ type_filter }}&search={{ search }}&sort={{ sort }}{% if show_deleted %}&deleted=1{% endif %}">上一页</a>
+        </li>
+        {% endif %}
+        {% for p in pagination.iter_pages() %}
+            {% if p %}
+            <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ p }}&type={{ type_filter }}&search={{ search }}&sort={{ sort }}{% if show_deleted %}&deleted=1{% endif %}">{{ p }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.next_num }}&type={{ type_filter }}&search={{ search }}&sort={{ sort }}{% if show_deleted %}&deleted=1{% endif %}">下一页</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center text-muted py-5">
+    <p>{% if show_deleted %}回收站为空{% else %}暂无卡券{% endif %}</p>
+</div>
+{% endif %}
+{% endblock %}

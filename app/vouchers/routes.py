@@ -20,7 +20,7 @@ MAGIC_BYTES = {
     'jpeg': [b'\xff\xd8\xff'],
     'gif': [b'GIF87a', b'GIF89a'],
     'pdf': [b'%PDF'],
-    'webp': [b'RIFF'],
+    'webp': None,  # special handling
 }
 
 
@@ -40,7 +40,10 @@ def validate_file_type(file_storage):
     file_storage.seek(0)
     if not header:
         return False
-    signatures = MAGIC_BYTES.get(ext, [])
+    if ext == 'webp':
+        return (header[:4] == b'RIFF' and
+                len(header) >= 12 and header[8:12] == b'WEBP')
+    signatures = MAGIC_BYTES.get(ext)
     if not signatures:
         return False
     return any(header.startswith(sig) for sig in signatures)
@@ -211,11 +214,15 @@ def edit(id):
             )
             db.session.add(history)
 
+        if new_attachment and old_attachment:
+            if not delete_attachment(old_attachment):
+                db.session.rollback()
+                delete_attachment(new_attachment)
+                flash('附件替换失败：无法删除旧附件文件，操作已取消', 'danger')
+                return render_template('vouchers/form.html', form=form, title='编辑卡券')
+
         try:
             db.session.commit()
-            if new_attachment and old_attachment:
-                if not delete_attachment(old_attachment):
-                    flash('警告：旧附件文件删除失败，请联系管理员清理磁盘残留文件', 'warning')
             flash('卡券更新成功', 'success')
             return redirect(url_for('vouchers.detail', id=voucher.id))
         except Exception:

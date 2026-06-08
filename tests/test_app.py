@@ -277,3 +277,106 @@ class TestVouchers:
             v = Voucher.query.filter_by(name='PDF测试').first()
             assert v is not None
             assert v.attachment_path.endswith('.pdf')
+
+    def test_pdf_preview_rendered(self, app, auth_client):
+        """PDF attachments should render an embed preview in detail page."""
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        pdf_content = b'%PDF-1.4 fake pdf content'
+        data = {
+            'name': 'PDF预览测试',
+            'type': 'coupon',
+            'balance': '0',
+            'face_value': '0',
+            'attachment': (io.BytesIO(pdf_content), 'preview.pdf'),
+        }
+        auth_client.post('/vouchers/create', data=data,
+                         content_type='multipart/form-data')
+        with app.app_context():
+            v = Voucher.query.filter_by(name='PDF预览测试').first()
+            vid = v.id
+        resp = auth_client.get(f'/vouchers/{vid}')
+        html = resp.data.decode()
+        assert '<embed' in html
+        assert 'application/pdf' in html
+
+    def test_attachment_replace_fails_if_old_undeletable(self, app, auth_client):
+        """When old attachment can't be deleted, operation is aborted and DB unchanged."""
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        # Create voucher with an attachment
+        png_header = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
+        data = {
+            'name': '替换测试',
+            'type': 'gift_card',
+            'balance': '0',
+            'face_value': '0',
+            'attachment': (io.BytesIO(png_header), 'original.png'),
+        }
+        auth_client.post('/vouchers/create', data=data,
+                         content_type='multipart/form-data')
+        with app.app_context():
+            v = Voucher.query.filter_by(name='替换测试').first()
+            vid = v.id
+            old_path = v.attachment_path
+
+        # Make the old file undeletable by removing it and replacing with a directory
+        old_filepath = os.path.join(app.config['UPLOAD_FOLDER'], old_path)
+        os.remove(old_filepath)
+        os.mkdir(old_filepath)  # os.remove() on a directory will fail
+
+        new_png = b'\x89PNG\r\n\x1a\n' + b'\x01' * 100
+        data = {
+            'name': '替换测试',
+            'type': 'gift_card',
+            'balance': '0',
+            'face_value': '0',
+            'attachment': (io.BytesIO(new_png), 'replacement.png'),
+        }
+        resp = auth_client.post(f'/vouchers/{vid}/edit', data=data,
+                                content_type='multipart/form-data', follow_redirects=True)
+        html = resp.data.decode()
+        assert '无法删除旧附件' in html
+
+        # DB should still point to the old attachment path (unchanged)
+        with app.app_context():
+            v = db.session.get(Voucher, vid)
+            assert v.attachment_path == old_path
+
+        # Cleanup
+        os.rmdir(old_filepath)
+
+    def test_reject_fake_webp(self, app, auth_client):
+        """A RIFF file that is not WebP (e.g. WAV) should be rejected."""
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        # RIFF header but with 'WAVE' instead of 'WEBP' at bytes 8-12
+        riff_wav = b'RIFF\x00\x00\x00\x00WAVE' + b'\x00' * 50
+        data = {
+            'name': '假WebP',
+            'type': 'coupon',
+            'balance': '0',
+            'face_value': '0',
+            'attachment': (io.BytesIO(riff_wav), 'fake.webp'),
+        }
+        resp = auth_client.post('/vouchers/create', data=data,
+                                content_type='multipart/form-data', follow_redirects=True)
+        assert '文件类型与后缀不匹配' in resp.data.decode()
+        with app.app_context():
+            assert Voucher.query.filter_by(name='假WebP').first() is None
+
+    def test_accept_valid_webp(self, app, auth_client):
+        """A proper WebP file (RIFF....WEBP) should be accepted."""
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        webp_data = b'RIFF\x00\x00\x00\x00WEBP' + b'\x00' * 50
+        data = {
+            'name': '真WebP',
+            'type': 'coupon',
+            'balance': '0',
+            'face_value': '0',
+            'attachment': (io.BytesIO(webp_data), 'real.webp'),
+        }
+        resp = auth_client.post('/vouchers/create', data=data,
+                                content_type='multipart/form-data', follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            v = Voucher.query.filter_by(name='真WebP').first()
+            assert v is not None
+            assert v.attachment_path.endswith('.webp')

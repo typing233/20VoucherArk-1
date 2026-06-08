@@ -46,6 +46,8 @@
                 {% set ext = voucher.attachment_path.rsplit('.', 1)[1].lower() %}
                 {% if ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
                 <img src="{{ url_for('vouchers.download_attachment', id=voucher.id) }}" class="img-fluid mb-2" style="max-height:300px">
+                {% elif ext == 'pdf' %}
+                <embed src="{{ url_for('vouchers.download_attachment', id=voucher.id) }}" type="application/pdf" width="100%" height="500px" class="mb-2">
                 {% endif %}
                 <div>
                     <a href="{{ url_for('vouchers.download_attachment', id=voucher.id) }}" class="btn btn-sm btn-outline-secondary">下载附件</a>

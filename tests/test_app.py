@@ -215,3 +215,65 @@ class TestVouchers:
             assert v is not None
             assert v.attachment_path is not None
             assert v.attachment_path.endswith('.png')
+
+    def test_edit_page_records_balance_history(self, app, auth_client):
+        """Fix 1: editing balance via the general edit page must record history."""
+        with app.app_context():
+            user = User.query.filter_by(username='testuser').first()
+            v = Voucher(user_id=user.id, name='编辑历史测试', type='gift_card',
+                        balance=500, face_value=1000)
+            db.session.add(v)
+            db.session.commit()
+            vid = v.id
+
+        auth_client.post(f'/vouchers/{vid}/edit', data={
+            'name': '编辑历史测试',
+            'type': 'gift_card',
+            'balance': '300',
+            'face_value': '800',
+        }, follow_redirects=True)
+
+        with app.app_context():
+            v = db.session.get(Voucher, vid)
+            assert v.balance == 300.0
+            assert v.face_value == 800.0
+            history = v.history.order_by(None).all()
+            assert len(history) == 2
+            fields = {h.field_name for h in history}
+            assert fields == {'balance', 'face_value'}
+
+    def test_reject_fake_extension(self, app, auth_client):
+        """Fix 4: file with wrong magic bytes should be rejected."""
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        data = {
+            'name': '假图片',
+            'type': 'coupon',
+            'balance': '0',
+            'face_value': '0',
+            'attachment': (io.BytesIO(b'this is not a png file'), 'fake.png'),
+        }
+        resp = auth_client.post('/vouchers/create', data=data,
+                                content_type='multipart/form-data', follow_redirects=True)
+        assert '文件类型与后缀不匹配' in resp.data.decode()
+        with app.app_context():
+            v = Voucher.query.filter_by(name='假图片').first()
+            assert v is None
+
+    def test_pdf_upload_valid(self, app, auth_client):
+        """Fix 4: valid PDF with correct magic bytes should be accepted."""
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        pdf_content = b'%PDF-1.4 fake pdf content for testing'
+        data = {
+            'name': 'PDF测试',
+            'type': 'coupon',
+            'balance': '0',
+            'face_value': '0',
+            'attachment': (io.BytesIO(pdf_content), 'test.pdf'),
+        }
+        resp = auth_client.post('/vouchers/create', data=data,
+                                content_type='multipart/form-data', follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            v = Voucher.query.filter_by(name='PDF测试').first()
+            assert v is not None
+            assert v.attachment_path.endswith('.pdf')

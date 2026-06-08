@@ -14,16 +14,42 @@ from app.vouchers import bp
 from app.vouchers.forms import VoucherForm, BalanceEditForm
 from app.models import Voucher, VoucherHistory
 
+MAGIC_BYTES = {
+    'png': [b'\x89PNG\r\n\x1a\n'],
+    'jpg': [b'\xff\xd8\xff'],
+    'jpeg': [b'\xff\xd8\xff'],
+    'gif': [b'GIF87a', b'GIF89a'],
+    'pdf': [b'%PDF'],
+    'webp': [b'RIFF'],
+}
+
 
 def allowed_file(filename):
     return ('.' in filename and
             filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS'])
 
 
+def validate_file_type(file_storage):
+    """Check file's real type via magic bytes. Returns True if valid."""
+    if not file_storage or not file_storage.filename:
+        return False
+    ext = file_storage.filename.rsplit('.', 1)[1].lower()
+    if ext not in current_app.config['ALLOWED_EXTENSIONS']:
+        return False
+    header = file_storage.read(16)
+    file_storage.seek(0)
+    if not header:
+        return False
+    signatures = MAGIC_BYTES.get(ext, [])
+    if not signatures:
+        return False
+    return any(header.startswith(sig) for sig in signatures)
+
+
 def save_attachment(file):
     if not file or not file.filename:
         return None
-    if not allowed_file(file.filename):
+    if not validate_file_type(file):
         return None
     ext = file.filename.rsplit('.', 1)[1].lower()
     filename = f"{uuid.uuid4().hex}.{ext}"
@@ -34,10 +60,14 @@ def save_attachment(file):
 
 def delete_attachment(filename):
     if not filename:
-        return
+        return True
     filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
     if os.path.exists(filepath):
-        os.remove(filepath)
+        try:
+            os.remove(filepath)
+        except OSError:
+            return False
+    return True
 
 
 @bp.route('/')
@@ -95,7 +125,7 @@ def create():
         if form.attachment.data and form.attachment.data.filename:
             attachment_name = save_attachment(form.attachment.data)
             if attachment_name is None:
-                flash('附件格式不支持', 'danger')
+                flash('附件格式不支持或文件类型与后缀不匹配', 'danger')
                 return render_template('vouchers/form.html', form=form, title='新建卡券')
 
         voucher = Voucher(
@@ -148,24 +178,44 @@ def edit(id):
         if form.attachment.data and form.attachment.data.filename:
             new_attachment = save_attachment(form.attachment.data)
             if new_attachment is None:
-                flash('附件格式不支持', 'danger')
+                flash('附件格式不支持或文件类型与后缀不匹配', 'danger')
                 return render_template('vouchers/form.html', form=form, title='编辑卡券')
+
+        # Track balance/face_value changes
+        new_balance = form.balance.data or 0.0
+        new_face_value = form.face_value.data or 0.0
+        balance_changes = []
+        if new_balance != voucher.balance:
+            balance_changes.append(('balance', str(voucher.balance), str(new_balance)))
+        if new_face_value != voucher.face_value:
+            balance_changes.append(('face_value', str(voucher.face_value), str(new_face_value)))
 
         voucher.name = form.name.data
         voucher.type = form.type.data
         voucher.code = form.code.data
-        voucher.balance = form.balance.data or 0.0
-        voucher.face_value = form.face_value.data or 0.0
+        voucher.balance = new_balance
+        voucher.face_value = new_face_value
         voucher.expiry_date = form.expiry_date.data
         voucher.notes = form.notes.data
 
         if new_attachment:
             voucher.attachment_path = new_attachment
 
+        for field_name, old_val, new_val in balance_changes:
+            history = VoucherHistory(
+                voucher_id=voucher.id,
+                modified_by=current_user.id,
+                field_name=field_name,
+                old_value=old_val,
+                new_value=new_val,
+            )
+            db.session.add(history)
+
         try:
             db.session.commit()
             if new_attachment and old_attachment:
-                delete_attachment(old_attachment)
+                if not delete_attachment(old_attachment):
+                    flash('警告：旧附件文件删除失败，请联系管理员清理磁盘残留文件', 'warning')
             flash('卡券更新成功', 'success')
             return redirect(url_for('vouchers.detail', id=voucher.id))
         except Exception:
